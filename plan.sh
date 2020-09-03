@@ -1,5 +1,3 @@
-source "$(dirname "${BASH_SOURCE[0]}")/../erlang/plan.sh"
-
 pkg_name=erlang22
 pkg_origin=core
 pkg_version=22.3
@@ -11,3 +9,62 @@ pkg_source="http://www.erlang.org/download/otp_src_${pkg_version}.tar.gz"
 pkg_filename="otp_src_${pkg_version}.tar.gz"
 pkg_shasum=5c35b952808fa933ca95a9d259818aee27cb17ca96067da0fda2f035259ee612
 pkg_dirname="otp_src_${pkg_version}"
+pkg_build_deps=(
+  core/coreutils
+  core/gcc
+  core/make
+  core/openssl
+  core/perl
+  core/m4
+)
+pkg_deps=(
+  core/glibc
+  core/zlib
+  core/ncurses
+  core/openssl
+  core/sed
+)
+pkg_bin_dirs=(bin)
+pkg_include_dirs=(include)
+pkg_lib_dirs=(lib)
+
+do_prepare() {
+  # The `/bin/pwd` path is hardcoded, so we'll add a symlink if needed.
+  if [[ ! -r /bin/pwd ]]; then
+    ln -sv "$(pkg_path_for coreutils)/bin/pwd" /bin/pwd
+    _clean_pwd=true
+  fi
+
+  if [[ ! -r /bin/rm ]]; then
+    ln -sv "$(pkg_path_for coreutils)/bin/rm" /bin/rm
+    _clean_rm=true
+  fi
+}
+
+do_build() {
+  sed -i 's/std_ssl_locations=.*/std_ssl_locations=""/' erts/configure.in
+  sed -i 's/std_ssl_locations=.*/std_ssl_locations=""/' erts/configure
+  CFLAGS="${CFLAGS} -O2" ./configure \
+    --prefix="${pkg_prefix}" \
+    --enable-threads \
+    --enable-smp-support \
+    --enable-kernel-poll \
+    --enable-dynamic-ssl-lib \
+    --enable-shared-zlib \
+    --enable-hipe \
+    --with-ssl="$(pkg_path_for openssl)" \
+    --with-ssl-include="$(pkg_path_for openssl)/include" \
+    --without-javac
+  make
+}
+
+do_end() {
+  # Clean up the `pwd` link, if we set it up.
+  if [[ -n "$_clean_pwd" ]]; then
+    rm -fv /bin/pwd
+  fi
+
+  if [[ -n "$_clean_rm" ]]; then
+    rm -fv /bin/rm
+  fi
+}
